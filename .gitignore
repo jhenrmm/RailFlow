@@ -1,3 +1,12 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Virtual environment
 venv/
 .venv/
-env/
+
+# Python
+__pycache__/
+*.pyc
