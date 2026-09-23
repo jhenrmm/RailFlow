@@ -28,6 +28,6 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:4b")
 OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "1000"))
 
 # JWT
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev-secret-change-me-min-32-bytes-!!")
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "60"))
