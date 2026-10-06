@@ -4,7 +4,7 @@ import httpx
 
 from config import OPEN_METEO_URL, WEATHER_TIMEOUT
 
-_WEATHER_PARAMS = {
+_WEATHER_PARAMS: dict[str, str | int] = {
     "current": (
         "temperature_2m,relative_humidity_2m,apparent_temperature,"
         "weather_code,precipitation,wind_speed_10m,wind_direction_10m"
