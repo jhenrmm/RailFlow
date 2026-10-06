@@ -25,8 +25,11 @@ def hash_password(password: str) -> str:
         password.encode("utf-8"), salt=salt, n=_SCRYPT_N, r=_SCRYPT_R, p=_SCRYPT_P
     )
     return "scrypt${}${}${}${}${}".format(
-        _SCRYPT_N, _SCRYPT_R, _SCRYPT_P,
-        base64.b64encode(salt).decode(), base64.b64encode(digest).decode(),
+        _SCRYPT_N,
+        _SCRYPT_R,
+        _SCRYPT_P,
+        base64.b64encode(salt).decode(),
+        base64.b64encode(digest).decode(),
     )
 
 
@@ -37,7 +40,10 @@ def verify_password(password: str, hashed: str) -> bool:
             return False
         candidate = hashlib.scrypt(
             password.encode("utf-8"),
-            salt=base64.b64decode(salt), n=int(n), r=int(r), p=int(p),
+            salt=base64.b64decode(salt),
+            n=int(n),
+            r=int(r),
+            p=int(p),
         )
         return hmac.compare_digest(candidate, base64.b64decode(expected))
     except (ValueError, TypeError, UnicodeError):
@@ -56,9 +62,7 @@ def create_access_token(user_id: int) -> str:
 
 def _decode_token(token: str) -> int:
     try:
-        payload = jwt.decode(
-            token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM]
-        )
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
     except jwt.PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -76,9 +80,7 @@ def _decode_token(token: str) -> int:
 
 def _payload(token: str) -> dict:
     try:
-        return jwt.decode(
-            token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM]
-        )
+        return jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
     except jwt.PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -93,18 +95,14 @@ def _token_hash(token: str) -> str:
 
 def _is_token_revoked(token: str, db: Session) -> bool:
     return (
-        db.query(RevokedToken)
-        .filter(RevokedToken.token_hash == _token_hash(token))
-        .first()
+        db.query(RevokedToken).filter(RevokedToken.token_hash == _token_hash(token)).first()
         is not None
     )
 
 
 def revoke_token(token: str, db: Session) -> None:
     payload = _payload(token)
-    expires_at = datetime.fromtimestamp(
-        payload["exp"], tz=timezone.utc
-    )
+    expires_at = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
     now = datetime.now(timezone.utc)
     db.query(RevokedToken).filter(RevokedToken.expires_at < now).delete()
     db.add(

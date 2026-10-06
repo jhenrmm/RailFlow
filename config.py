@@ -8,9 +8,7 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 # Open-Meteo (clima, sem chave)
-OPEN_METEO_URL = os.getenv(
-    "OPEN_METEO_URL", "https://api.open-meteo.com/v1/forecast"
-)
+OPEN_METEO_URL = os.getenv("OPEN_METEO_URL", "https://api.open-meteo.com/v1/forecast")
 WEATHER_TIMEOUT = float(os.getenv("WEATHER_TIMEOUT", "10"))
 
 # OpenRoute (rotas)

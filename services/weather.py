@@ -11,7 +11,10 @@ _WEATHER_PARAMS = {
     ),
     # UTC makes forecast-time matching deterministic across the corridor.
     "timezone": "UTC",
-    "hourly": "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,wind_direction_10m",
+    "hourly": (
+        "temperature_2m,apparent_temperature,relative_humidity_2m,"
+        "precipitation,weather_code,wind_speed_10m,wind_direction_10m"
+    ),
     "forecast_days": 2,
 }
 
@@ -39,7 +42,9 @@ def _context(data: dict, target_time: datetime | None = None) -> dict:
         range(len(times)),
         key=lambda i: abs(datetime.fromisoformat(times[i]) - target).total_seconds(),
     )
-    return {key: (times[index] if key == "time" else hourly.get(key, [None])[index]) for key in keys}
+    return {
+        key: (times[index] if key == "time" else hourly.get(key, [None])[index]) for key in keys
+    }
 
 
 def fetch_weather(latitude: float, longitude: float, target_time: datetime | None = None) -> dict:

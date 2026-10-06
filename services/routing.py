@@ -45,7 +45,11 @@ def fetch_route(origin, destination, profile: str) -> dict:
         raise ValueError(f"Unsupported profile '{profile}'")
     start = f"{origin.lon},{origin.lat}"
     end = f"{destination.lon},{destination.lat}"
-    url = f"{OPENROUTE_ROUTING_URL}/{profile}?api_key={OPENROUTE_API_KEY}&start={start}&end={end}&format=geojson"
+    url = (
+        f"{OPENROUTE_ROUTING_URL}/{profile}"
+        f"?api_key={OPENROUTE_API_KEY}"
+        f"&start={start}&end={end}&format=geojson"
+    )
     last_error = None
     for _ in range(3):
         try:

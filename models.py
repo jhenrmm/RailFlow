@@ -9,32 +9,19 @@ from database import Base
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(
-        primary_key=True
-    )
+    id: Mapped[int] = mapped_column(primary_key=True)
 
-    email: Mapped[str] = mapped_column(
-        String(255),
-        unique=True,
-        nullable=False
-    )
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
 
-    password: Mapped[str] = mapped_column(
-        String(255),
-        nullable=False
-    )
+    password: Mapped[str] = mapped_column(String(255), nullable=False)
 
-    analyses: Mapped[list["RouteAnalysisHistory"]] = relationship(
-        back_populates="user"
-    )
+    analyses: Mapped[list["RouteAnalysisHistory"]] = relationship(back_populates="user")
 
 
 class RouteAnalysisHistory(Base):
     __tablename__ = "route_analysis_history"
 
-    id: Mapped[int] = mapped_column(
-        primary_key=True
-    )
+    id: Mapped[int] = mapped_column(primary_key=True)
 
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id"),
@@ -60,17 +47,13 @@ class RouteAnalysisHistory(Base):
         server_default=func.now(),
     )
 
-    user: Mapped["User"] = relationship(
-        back_populates="analyses"
-    )
+    user: Mapped["User"] = relationship(back_populates="analyses")
 
 
 class RevokedToken(Base):
     __tablename__ = "revoked_tokens"
 
-    id: Mapped[int] = mapped_column(
-        primary_key=True
-    )
+    id: Mapped[int] = mapped_column(primary_key=True)
 
     token_hash: Mapped[str] = mapped_column(
         String(64),
@@ -78,9 +61,7 @@ class RevokedToken(Base):
         index=True,
     )
 
-    expires_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True)
-    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
     revoked_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

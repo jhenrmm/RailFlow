@@ -9,9 +9,9 @@ SYSTEM_PROMPT = (
     "You are an expert in transportation and meteorology. Given a trip's route "
     "summary and the current weather along the corridor, analyze the expected "
     "travel conditions. Respond ONLY with JSON using these keys: "
-    "\"summary\" (overall assessment), \"weather_impact\" (how the weather may "
-    "affect the trip), \"delay_risk\" (one of: low, moderate, high), and "
-    "\"recommendation\" (practical advice for the traveler)."
+    '"summary" (overall assessment), "weather_impact" (how the weather may '
+    'affect the trip), "delay_risk" (one of: low, moderate, high), and '
+    '"recommendation" (practical advice for the traveler).'
 )
 
 
@@ -63,7 +63,5 @@ def analyze_trip(route: dict, weather: list[dict]) -> TripAssessment:
         raise ValueError(f"Ollama error: {body['error']}")
     content = body.get("message", {}).get("content")
     if not content:
-        raise ValueError(
-            f"Unexpected Ollama response keys: {sorted(body.keys())}"
-        )
+        raise ValueError(f"Unexpected Ollama response keys: {sorted(body.keys())}")
     return _parse_assessment(content)

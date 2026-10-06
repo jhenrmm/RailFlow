@@ -28,13 +28,19 @@ def list_history(
     )
     return [
         HistoryEntry(
-            id=row.id, user_id=row.user_id, origin_lat=row.origin_lat,
-            origin_lon=row.origin_lon, destination_lat=row.destination_lat,
-            destination_lon=row.destination_lon, profile=row.profile,
-            distance_m=row.distance_m, duration_s=row.duration_s,
+            id=row.id,
+            user_id=row.user_id,
+            origin_lat=row.origin_lat,
+            origin_lon=row.origin_lon,
+            destination_lat=row.destination_lat,
+            destination_lon=row.destination_lon,
+            profile=row.profile,
+            distance_m=row.distance_m,
+            duration_s=row.duration_s,
             weather=[WeatherSnapshot.model_validate(item) for item in json.loads(row.weather_json)],
             analysis=TripAssessment.model_validate_json(row.analysis),
-            model=row.model, created_at=row.created_at,
+            model=row.model,
+            created_at=row.created_at,
         )
         for row in rows
     ]

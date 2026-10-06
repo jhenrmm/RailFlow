@@ -25,7 +25,13 @@ router = APIRouter(prefix="/analyze", tags=["analysis"])
 
 def _distance_km(a: dict, b: dict) -> float:
     lat1, lon1, lat2, lon2 = map(radians, (a["lat"], a["lon"], b["lat"], b["lon"]))
-    return 2 * 6371 * asin(sqrt(sin((lat2 - lat1) / 2) ** 2 + cos(lat1) * cos(lat2) * sin((lon2 - lon1) / 2) ** 2))
+    return (
+        2
+        * 6371
+        * asin(
+            sqrt(sin((lat2 - lat1) / 2) ** 2 + cos(lat1) * cos(lat2) * sin((lon2 - lon1) / 2) ** 2)
+        )
+    )
 
 
 def _corridor_points(route: dict, count: int = 5) -> list[tuple[str, float, float, float]]:
@@ -46,7 +52,9 @@ def _corridor_points(route: dict, count: int = 5) -> list[tuple[str, float, floa
         start, end = coords[segment], coords[segment + 1]
         lat = start["lat"] + fraction * (end["lat"] - start["lat"])
         lon = start["lon"] + fraction * (end["lon"] - start["lon"])
-        label = "origin" if index == 0 else "destination" if index == count - 1 else f"corridor_{index}"
+        label = (
+            "origin" if index == 0 else "destination" if index == count - 1 else f"corridor_{index}"
+        )
         samples.append((label, lat, lon, target / total))
     return samples
 
@@ -70,11 +78,13 @@ def analyze_route(
     snapshots: list[WeatherSnapshot] = []
     try:
         departure = datetime.now(timezone.utc)
+
         def fetch(point):
             label, lat, lon, progress = point
             arrival = departure + timedelta(seconds=route["duration_s"] * progress)
             data = weather.fetch_weather(lat, lon, arrival)
             return WeatherSnapshot(location=label, latitude=lat, longitude=lon, **data)
+
         with ThreadPoolExecutor(max_workers=len(points)) as executor:
             snapshots = list(executor.map(fetch, points))
     except Exception:
@@ -126,9 +136,7 @@ def analyze_route(
     except Exception:
         db.rollback()
         logger.exception("Could not save route analysis")
-        raise HTTPException(
-            status_code=500, detail="Could not save route analysis"
-        )
+        raise HTTPException(status_code=500, detail="Could not save route analysis")
 
     return RouteAnalysisResponse(
         route=RouteSummary(
