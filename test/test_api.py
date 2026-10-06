@@ -7,7 +7,6 @@ import main
 from database import Base, get_db
 from services import ai, routing, weather
 
-
 engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
 Session = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
