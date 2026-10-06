@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import hmac
 import os
@@ -12,33 +13,35 @@ from config import JWT_ALGORITHM, JWT_EXPIRE_MINUTES, JWT_SECRET_KEY
 from database import get_db
 from models import RevokedToken, User
 
-_PBKDF2_ITERATIONS = 260_000
 _bearer = HTTPBearer(auto_error=False)
+_SCRYPT_N = 2**14
+_SCRYPT_R = 8
+_SCRYPT_P = 1
 
 
 def hash_password(password: str) -> str:
     salt = os.urandom(16)
-    digest = hashlib.pbkdf2_hmac(
-        "sha256", password.encode("utf-8"), salt, _PBKDF2_ITERATIONS
+    digest = hashlib.scrypt(
+        password.encode("utf-8"), salt=salt, n=_SCRYPT_N, r=_SCRYPT_R, p=_SCRYPT_P
     )
-    return (
-        f"pbkdf2_sha256${_PBKDF2_ITERATIONS}${salt.hex()}${digest.hex()}"
+    return "scrypt${}${}${}${}${}".format(
+        _SCRYPT_N, _SCRYPT_R, _SCRYPT_P,
+        base64.b64encode(salt).decode(), base64.b64encode(digest).decode(),
     )
 
 
 def verify_password(password: str, hashed: str) -> bool:
     try:
-        algo, iterations, salt_hex, digest_hex = hashed.split("$")
-        salt = bytes.fromhex(salt_hex)
-        expected = bytes.fromhex(digest_hex)
-    except (ValueError, AttributeError):
+        algorithm, n, r, p, salt, expected = hashed.split("$")
+        if algorithm != "scrypt":
+            return False
+        candidate = hashlib.scrypt(
+            password.encode("utf-8"),
+            salt=base64.b64decode(salt), n=int(n), r=int(r), p=int(p),
+        )
+        return hmac.compare_digest(candidate, base64.b64decode(expected))
+    except (ValueError, TypeError, UnicodeError):
         return False
-    if algo != "pbkdf2_sha256":
-        return False
-    candidate = hashlib.pbkdf2_hmac(
-        "sha256", password.encode("utf-8"), salt, int(iterations)
-    )
-    return hmac.compare_digest(candidate, expected)
 
 
 def create_access_token(user_id: int) -> str:

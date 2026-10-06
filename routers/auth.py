@@ -1,16 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from database import get_db
 from models import User
 from schemas import LoginRequest, RegisterRequest, TokenResponse, UserResponse
-from services import security
+from services import rate_limit, security
+
+logger = logging.getLogger("transito.auth")
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
-def register(req: RegisterRequest, db: Session = Depends(get_db)):
+def register(request: Request, req: RegisterRequest, db: Session = Depends(get_db)):
+    rate_limit.guard_auth_attempt(request)
     if db.query(User).filter(User.email == req.email).first():
         raise HTTPException(status_code=409, detail="Email already registered")
 
@@ -18,9 +23,10 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
     db.add(user)
     try:
         db.commit()
-    except Exception as exc:
+    except Exception:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Could not create user: {exc}")
+        logger.exception("Could not create user")
+        raise HTTPException(status_code=500, detail="Could not create user")
     db.refresh(user)
     return TokenResponse(
         access_token=security.create_access_token(user.id),
@@ -29,7 +35,8 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(req: LoginRequest, db: Session = Depends(get_db)):
+def login(request: Request, req: LoginRequest, db: Session = Depends(get_db)):
+    rate_limit.guard_auth_attempt(request)
     user = db.query(User).filter(User.email == req.email).first()
     if user is None or not security.verify_password(req.password, user.password):
         raise HTTPException(status_code=401, detail="Invalid credentials")

@@ -3,6 +3,7 @@ import json
 import httpx
 
 from config import OLLAMA_MODEL, OLLAMA_TIMEOUT, OLLAMA_URL
+from schemas import TripAssessment
 
 SYSTEM_PROMPT = (
     "You are an expert in transportation and meteorology. Given a trip's route "
@@ -23,7 +24,18 @@ def build_prompt(route: dict, weather: list[dict]) -> str:
     )
 
 
-def analyze_trip(route: dict, weather: list[dict]) -> str:
+def _parse_assessment(content: str) -> TripAssessment:
+    """Reject hallucinated prose or malformed model output at the boundary."""
+    cleaned = content.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+    try:
+        return TripAssessment.model_validate_json(cleaned)
+    except (ValueError, json.JSONDecodeError) as exc:
+        raise ValueError("Ollama returned an invalid assessment") from exc
+
+
+def analyze_trip(route: dict, weather: list[dict]) -> TripAssessment:
     payload = {
         "model": OLLAMA_MODEL,
         "stream": False,
@@ -33,12 +45,18 @@ def analyze_trip(route: dict, weather: list[dict]) -> str:
         ],
         "options": {"temperature": 0.3},
     }
-    resp = httpx.post(
-        f"{OLLAMA_URL.rstrip('/')}/api/chat",
-        json=payload,
-        timeout=OLLAMA_TIMEOUT,
-    )
-    resp.raise_for_status()
+    last_error = None
+    for _ in range(3):
+        try:
+            resp = httpx.post(
+                f"{OLLAMA_URL.rstrip('/')}/api/chat", json=payload, timeout=OLLAMA_TIMEOUT
+            )
+            resp.raise_for_status()
+            break
+        except httpx.HTTPError as exc:
+            last_error = exc
+    else:
+        raise last_error or RuntimeError("Ollama request failed")
 
     body = resp.json()
     if "error" in body:
@@ -48,4 +66,4 @@ def analyze_trip(route: dict, weather: list[dict]) -> str:
         raise ValueError(
             f"Unexpected Ollama response keys: {sorted(body.keys())}"
         )
-    return content
+    return _parse_assessment(content)

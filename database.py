@@ -3,7 +3,9 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from config import DATABASE_URL
 
-engine = create_engine(DATABASE_URL)
+# The application validates this setting during startup.  A placeholder keeps
+# imports usable for unit tests that override the database dependency.
+engine = create_engine(DATABASE_URL or "sqlite://")
 
 SessionLocal = sessionmaker(
     bind=engine,

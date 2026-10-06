@@ -67,7 +67,7 @@ pip install -r requirements.txt
 ### 2. Configure environment variables
 
 ```bash
-cp .env.example .env        # Windows
+copy .env.example .env      # Windows
 # cp .env.example .env      # macOS/Linux
 ```
 
@@ -76,9 +76,16 @@ Edit `.env` at minimum:
 ```ini
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/railflow
 OPENROUTE_API_KEY=your-openroute-key-here
+JWT_SECRET_KEY=replace-with-a-long-random-secret
 ```
 
-### 3. Run the API
+### 3. Apply database migrations
+
+```bash
+alembic upgrade head
+```
+
+### 4. Run the API
 
 ```bash
 uvicorn main:app --reload
@@ -86,15 +93,15 @@ uvicorn main:app --reload
 
 Open http://localhost:8000/docs for the interactive Swagger UI.
 
-> Tables are created automatically on startup (`Base.metadata.create_all`).
+Use `GET /health` for a liveness check and `GET /ready` for a readiness check.
 
-### 4. Run the integration test
+### 5. Run automated tests
 
 ```bash
-python test/integration_test.py
+pytest
 ```
 
-Requires Ollama running and `OPENROUTE_API_KEY` configured. It registers a user, performs a real trip analysis and validates the stored history.
+The test suite mocks external services, so it does not require Ollama, OpenRoute, or an internet connection.
 
 ## API endpoints
 
@@ -112,7 +119,7 @@ Requires Ollama running and `OPENROUTE_API_KEY` configured. It registers a user,
 | --- | --- | --- |
 | `POST` | `/analyze/route` | Analyze a trip. Body: `origin`, `destination` (`lat`/`lon`) and optional `profile`. Requires `Authorization: Bearer <token>` |
 
-Supported `profile` values: `driving-car`, `driving-hgv`, `foot-walking`, `cycling-regular`, `wheelchair`.
+Supported `profile` values: `driving-car`, `driving-hgv`, `foot-walking`, `foot-hiking`, `cycling-regular`, `cycling-road`, `cycling-mountain`, `cycling-electric`, and `wheelchair`.
 
 Example request:
 
@@ -133,7 +140,9 @@ The response contains the route summary, weather snapshots for the origin/destin
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/history` | List the current user's past analyses, newest first |
+| `GET` | `/history?offset=0&limit=20` | Paginated past analyses for the current user, newest first |
+| `GET` | `/health` | Liveness check |
+| `GET` | `/ready` | Readiness check |
 
 ## Environment variables
 
@@ -148,9 +157,12 @@ The response contains the route summary, weather snapshots for the origin/destin
 | `OLLAMA_URL` | no | `http://localhost:11434` | Ollama base URL |
 | `OLLAMA_MODEL` | no | `qwen3:4b` | Ollama model name |
 | `OLLAMA_TIMEOUT` | no | `1000` | Ollama request timeout (s) |
-| `JWT_SECRET_KEY` | no | dev default | JWT signing secret (set a strong one in production) |
+| `JWT_SECRET_KEY` | yes | — | JWT signing secret; use a long random value |
 | `JWT_ALGORITHM` | no | `HS256` | JWT signing algorithm |
 | `JWT_EXPIRE_MINUTES` | no | `60` | Access token lifetime |
+| `ALLOWED_ORIGINS` | no | — | Comma-separated browser origins permitted by CORS |
+| `RATE_LIMIT_ATTEMPTS` | no | `5` | Login/register attempts permitted per window and IP |
+| `RATE_LIMIT_WINDOW_SECONDS` | no | `60` | Login/register rate-limit window |
 
 ## License
 

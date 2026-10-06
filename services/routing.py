@@ -8,9 +8,9 @@ PROFILES = (
     "cycling-regular",
     "cycling-road",
     "cycling-mountain",
-    "cycling-eletric"
+    "cycling-electric",
     "foot-walking",
-    "foot-hiking"
+    "foot-hiking",
     "wheelchair",
 )
 
@@ -34,7 +34,7 @@ def _extract(data: dict) -> dict:
     return {
         "distance_m": summary["distance"],
         "duration_s": summary["duration"],
-        "midpoint": {"lat": mid_lat, "lon": mid_lon},
+        "coordinates": [{"lat": lat, "lon": lon} for lon, lat in coords],
     }
 
 
@@ -44,10 +44,14 @@ def fetch_route(origin, destination, profile: str) -> dict:
     if profile not in PROFILES:
         raise ValueError(f"Unsupported profile '{profile}'")
     start = f"{origin.lon},{origin.lat}"
-    end = f"{destination.lon},{origin.lat}"
-    resp = httpx.get(
-        f"{OPENROUTE_ROUTING_URL}/{profile}?api_key={OPENROUTE_API_KEY}&start={start}&end={end}",
-        timeout=OPENROUTE_TIMEOUT,
-    )
-    resp.raise_for_status()
-    return _extract(resp.json())
+    end = f"{destination.lon},{destination.lat}"
+    url = f"{OPENROUTE_ROUTING_URL}/{profile}?api_key={OPENROUTE_API_KEY}&start={start}&end={end}&format=geojson"
+    last_error = None
+    for _ in range(3):
+        try:
+            resp = httpx.get(url, timeout=OPENROUTE_TIMEOUT)
+            resp.raise_for_status()
+            return _extract(resp.json())
+        except httpx.HTTPError as exc:
+            last_error = exc
+    raise last_error or RuntimeError("Routing request failed")

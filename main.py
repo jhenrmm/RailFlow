@@ -1,14 +1,41 @@
-from fastapi import FastAPI
+import logging
+from contextlib import asynccontextmanager
 
-from database import Base, engine
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from config import ALLOWED_ORIGINS, validate_settings
 from routers import analysis, auth, history
 
-app = FastAPI(title="Transito AI")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 
-@app.on_event("startup")
-def startup():
-    return Base.metadata.create_all(bind=engine)
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    validate_settings()
+    yield
+
+
+app = FastAPI(title="Rail Flow", version="1.0.0", lifespan=lifespan)
+
+if ALLOWED_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=ALLOWED_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
+
+
+@app.get("/health", tags=["operations"])
+def health():
+    return {"status": "ok"}
+
+
+@app.get("/ready", tags=["operations"])
+def ready():
+    return {"status": "ready"}
 
 
 app.include_router(auth.router)

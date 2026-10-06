@@ -8,6 +8,10 @@ Profile = Literal[
     "driving-hgv",
     "foot-walking",
     "cycling-regular",
+    "cycling-road",
+    "cycling-mountain",
+    "cycling-electric",
+    "foot-hiking",
     "wheelchair",
 ]
 
@@ -21,6 +25,14 @@ class RouteAnalysisRequest(BaseModel):
     origin: Coordinates
     destination: Coordinates
     profile: Profile = "driving-car"
+
+    @field_validator("destination")
+    @classmethod
+    def destination_differs_from_origin(cls, value: Coordinates, info):
+        origin = info.data.get("origin")
+        if origin and origin.lat == value.lat and origin.lon == value.lon:
+            raise ValueError("origin and destination must be different")
+        return value
 
 
 class WeatherSnapshot(BaseModel):
@@ -43,10 +55,17 @@ class RouteSummary(BaseModel):
     duration_min: float
 
 
+class TripAssessment(BaseModel):
+    summary: str = Field(min_length=1, max_length=2_000)
+    weather_impact: str = Field(min_length=1, max_length=2_000)
+    delay_risk: Literal["low", "moderate", "high"]
+    recommendation: str = Field(min_length=1, max_length=2_000)
+
+
 class RouteAnalysisResponse(BaseModel):
     route: RouteSummary
     weather: list[WeatherSnapshot]
-    analysis: str
+    analysis: TripAssessment
     model: str
 
 
@@ -60,8 +79,8 @@ class HistoryEntry(BaseModel):
     profile: str
     distance_m: float
     duration_s: float
-    weather_json: str
-    analysis: str
+    weather: list[WeatherSnapshot]
+    analysis: TripAssessment
     model: str
     created_at: datetime
 

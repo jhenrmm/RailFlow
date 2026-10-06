@@ -36,9 +36,9 @@ class RouteAnalysisHistory(Base):
         primary_key=True
     )
 
-    user_id: Mapped[int | None] = mapped_column(
+    user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id"),
-        nullable=True,
+        nullable=False,
     )
 
     origin_lat: Mapped[float] = mapped_column(Float)
@@ -60,7 +60,7 @@ class RouteAnalysisHistory(Base):
         server_default=func.now(),
     )
 
-    user: Mapped["User | None"] = relationship(
+    user: Mapped["User"] = relationship(
         back_populates="analyses"
     )
 
