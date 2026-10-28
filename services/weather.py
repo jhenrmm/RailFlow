@@ -1,8 +1,7 @@
 from datetime import datetime, timezone
 
-import httpx
-
 from config import OPEN_METEO_URL, WEATHER_TIMEOUT
+from services.http import request_with_retries
 
 _WEATHER_PARAMS: dict[str, str | int] = {
     "current": (
@@ -42,19 +41,17 @@ def _context(data: dict, target_time: datetime | None = None) -> dict:
         range(len(times)),
         key=lambda i: abs(datetime.fromisoformat(times[i]) - target).total_seconds(),
     )
-    return {
-        key: (times[index] if key == "time" else hourly.get(key, [None])[index]) for key in keys
-    }
+
+    def hourly_value(key: str):
+        if key == "time":
+            return times[index]
+        values = hourly.get(key, [])
+        return values[index] if index < len(values) else None
+
+    return {key: hourly_value(key) for key in keys}
 
 
 def fetch_weather(latitude: float, longitude: float, target_time: datetime | None = None) -> dict:
     params = {"latitude": latitude, "longitude": longitude, **_WEATHER_PARAMS}
-    last_error = None
-    for _ in range(3):
-        try:
-            resp = httpx.get(OPEN_METEO_URL, params=params, timeout=WEATHER_TIMEOUT)
-            resp.raise_for_status()
-            return _context(resp.json(), target_time)
-        except httpx.HTTPError as exc:
-            last_error = exc
-    raise last_error or RuntimeError("Weather request failed")
+    response = request_with_retries("GET", OPEN_METEO_URL, params=params, timeout=WEATHER_TIMEOUT)
+    return _context(response.json(), target_time)

@@ -1,0 +1,39 @@
+services:
+  app:
+    build: .
+    command: sh -c "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg://transito:transito@postgres:5432/transito
+      OPENROUTE_API_KEY: ${OPENROUTE_API_KEY:?Set OPENROUTE_API_KEY in your environment}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in your environment}
+      OLLAMA_URL: http://ollama:11434
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: transito
+      POSTGRES_USER: transito
+      POSTGRES_PASSWORD: transito
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U transito -d transito"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_data:/root/.ollama
+
+volumes:
+  postgres_data:
+  ollama_data:

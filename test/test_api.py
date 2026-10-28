@@ -5,7 +5,7 @@ from sqlalchemy.pool import StaticPool
 
 import main
 from database import Base, get_db
-from services import ai, routing, weather
+from services import ai, rate_limit, routing, weather
 
 engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
 Session = sessionmaker(bind=engine, autocommit=False, autoflush=False)
@@ -20,6 +20,7 @@ def override_db():
 
 
 def client(monkeypatch):
+    rate_limit._attempts.clear()
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     main.app.dependency_overrides[get_db] = override_db
@@ -98,16 +99,119 @@ def test_rejects_same_origin_and_destination(monkeypatch):
 
 def test_ai_output_must_match_schema(monkeypatch):
     class Response:
-        def raise_for_status(self):
-            pass
-
         def json(self):
             return {"message": {"content": "not json"}}
 
-    monkeypatch.setattr(ai.httpx, "post", lambda *args, **kwargs: Response())
+    monkeypatch.setattr(ai, "request_with_retries", lambda *args, **kwargs: Response())
     try:
         ai.analyze_trip({}, [])
-    except ValueError as exc:
-        assert "invalid assessment" in str(exc)
+    except ai.InvalidAiResponseError as exc:
+        assert "valid assessment" in str(exc)
     else:
         raise AssertionError("invalid model output must be rejected")
+
+
+def test_returns_bad_gateway_for_invalid_route_geometry(monkeypatch):
+    monkeypatch.setattr(
+        routing,
+        "fetch_route",
+        lambda *_: {"distance_m": 1, "duration_s": 1, "coordinates": [{"lat": 1, "lon": 1}]},
+    )
+    with client(monkeypatch) as api:
+        register = api.post(
+            "/auth/register",
+            json={"email": "geometry@example.com", "password": "safe-password-123"},
+        )
+        auth = {"Authorization": f"Bearer {register.json()['access_token']}"}
+        response = api.post(
+            "/analyze/route",
+            json={"origin": {"lat": 1, "lon": 1}, "destination": {"lat": 2, "lon": 2}},
+            headers=auth,
+        )
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == "Routing service returned unusable route geometry"
+
+
+def test_ready_returns_service_unavailable_when_database_is_down(monkeypatch):
+    monkeypatch.setattr(main, "is_database_ready", lambda: False)
+    with client(monkeypatch) as api:
+        response = api.get("/ready")
+
+    assert response.status_code == 503
+
+
+def test_returns_bad_gateway_when_routing_service_fails(monkeypatch):
+    monkeypatch.setattr(
+        routing, "fetch_route", lambda *_: (_ for _ in ()).throw(RuntimeError("down"))
+    )
+    with client(monkeypatch) as api:
+        register = api.post(
+            "/auth/register",
+            json={"email": "routing@example.com", "password": "safe-password-123"},
+        )
+        auth = {"Authorization": f"Bearer {register.json()['access_token']}"}
+        response = api.post(
+            "/analyze/route",
+            json={"origin": {"lat": 1, "lon": 1}, "destination": {"lat": 2, "lon": 2}},
+            headers=auth,
+        )
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == "Routing service unavailable"
+
+
+def test_returns_bad_gateway_when_weather_service_fails(monkeypatch):
+    monkeypatch.setattr(
+        routing,
+        "fetch_route",
+        lambda *_: {
+            "distance_m": 1_000,
+            "duration_s": 60,
+            "coordinates": [{"lat": 1, "lon": 1}, {"lat": 2, "lon": 2}],
+        },
+    )
+    monkeypatch.setattr(
+        weather, "fetch_weather", lambda *_: (_ for _ in ()).throw(RuntimeError("down"))
+    )
+    with client(monkeypatch) as api:
+        register = api.post(
+            "/auth/register",
+            json={"email": "weather@example.com", "password": "safe-password-123"},
+        )
+        auth = {"Authorization": f"Bearer {register.json()['access_token']}"}
+        response = api.post(
+            "/analyze/route",
+            json={"origin": {"lat": 1, "lon": 1}, "destination": {"lat": 2, "lon": 2}},
+            headers=auth,
+        )
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == "Weather service unavailable"
+
+
+def test_rejects_invalid_token(monkeypatch):
+    with client(monkeypatch) as api:
+        response = api.get("/history", headers={"Authorization": "Bearer invalid"})
+
+    assert response.status_code == 401
+
+
+def test_limits_authentication_attempts(monkeypatch):
+    rate_limit._attempts.clear()
+    with client(monkeypatch) as api:
+        for number in range(5):
+            response = api.post(
+                "/auth/register",
+                json={
+                    "email": f"limit-{number}@example.com",
+                    "password": "safe-password-123",
+                },
+            )
+            assert response.status_code == 201
+        response = api.post(
+            "/auth/register",
+            json={"email": "limit-six@example.com", "password": "safe-password-123"},
+        )
+
+    assert response.status_code == 429

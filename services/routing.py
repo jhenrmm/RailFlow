@@ -1,6 +1,5 @@
-import httpx
-
 from config import OPENROUTE_API_KEY, OPENROUTE_ROUTING_URL, OPENROUTE_TIMEOUT
+from services.http import request_with_retries
 
 PROFILES = (
     "driving-car",
@@ -20,14 +19,12 @@ def _extract(data: dict) -> dict:
         feature = data["features"][0]
         summary = feature["properties"]["summary"]
         coords = feature["geometry"]["coordinates"]
-        mid_lon, mid_lat = coords[len(coords) // 2]
     else:
         route = data["routes"][0]
         summary = route["summary"]
         geometry = route.get("geometry")
         if isinstance(geometry, dict) and geometry.get("coordinates"):
             coords = geometry["coordinates"]
-            mid_lon, mid_lat = coords[len(coords) // 2]
         else:
             raise ValueError("OpenRoute returned an unknown geometry format")
 
@@ -50,12 +47,5 @@ def fetch_route(origin, destination, profile: str) -> dict:
         f"?api_key={OPENROUTE_API_KEY}"
         f"&start={start}&end={end}&format=geojson"
     )
-    last_error = None
-    for _ in range(3):
-        try:
-            resp = httpx.get(url, timeout=OPENROUTE_TIMEOUT)
-            resp.raise_for_status()
-            return _extract(resp.json())
-        except httpx.HTTPError as exc:
-            last_error = exc
-    raise last_error or RuntimeError("Routing request failed")
+    response = request_with_retries("GET", url, timeout=OPENROUTE_TIMEOUT)
+    return _extract(response.json())

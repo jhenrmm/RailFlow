@@ -1,9 +1,8 @@
 import json
 
-import httpx
-
 from config import OLLAMA_MODEL, OLLAMA_TIMEOUT, OLLAMA_URL
 from schemas import TripAssessment
+from services.http import UpstreamServiceError, request_with_retries
 
 SYSTEM_PROMPT = (
     "You are an expert in transportation and meteorology. Given a trip's route "
@@ -35,6 +34,10 @@ def _parse_assessment(content: str) -> TripAssessment:
         raise ValueError("Ollama returned an invalid assessment") from exc
 
 
+class InvalidAiResponseError(ValueError):
+    """Ollama responded, but did not produce a valid trip assessment."""
+
+
 def analyze_trip(route: dict, weather: list[dict]) -> TripAssessment:
     payload = {
         "model": OLLAMA_MODEL,
@@ -45,23 +48,25 @@ def analyze_trip(route: dict, weather: list[dict]) -> TripAssessment:
         ],
         "options": {"temperature": 0.3},
     }
-    last_error = None
+    last_error: Exception | None = None
     for _ in range(3):
         try:
-            resp = httpx.post(
-                f"{OLLAMA_URL.rstrip('/')}/api/chat", json=payload, timeout=OLLAMA_TIMEOUT
+            response = request_with_retries(
+                "POST",
+                f"{OLLAMA_URL.rstrip('/')}/api/chat",
+                json=payload,
+                timeout=OLLAMA_TIMEOUT,
+                attempts=1,
             )
-            resp.raise_for_status()
-            break
-        except httpx.HTTPError as exc:
+            body = response.json()
+            if "error" in body:
+                raise InvalidAiResponseError(f"Ollama error: {body['error']}")
+            content = body.get("message", {}).get("content")
+            if not content:
+                raise InvalidAiResponseError(
+                    f"Unexpected Ollama response keys: {sorted(body.keys())}"
+                )
+            return _parse_assessment(content)
+        except (UpstreamServiceError, ValueError, json.JSONDecodeError) as exc:
             last_error = exc
-    else:
-        raise last_error or RuntimeError("Ollama request failed")
-
-    body = resp.json()
-    if "error" in body:
-        raise ValueError(f"Ollama error: {body['error']}")
-    content = body.get("message", {}).get("content")
-    if not content:
-        raise ValueError(f"Unexpected Ollama response keys: {sorted(body.keys())}")
-    return _parse_assessment(content)
+    raise InvalidAiResponseError("Ollama did not return a valid assessment") from last_error

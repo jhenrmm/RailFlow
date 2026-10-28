@@ -3,7 +3,6 @@ import logging
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
-from math import asin, cos, radians, sin, sqrt
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -16,47 +15,11 @@ from schemas import (
     RouteSummary,
     WeatherSnapshot,
 )
-from services import ai, routing, security, weather
+from services import ai, geo, routing, security, weather
 
 logger = logging.getLogger("transito")
 
 router = APIRouter(prefix="/analyze", tags=["analysis"])
-
-
-def _distance_km(a: dict, b: dict) -> float:
-    lat1, lon1, lat2, lon2 = map(radians, (a["lat"], a["lon"], b["lat"], b["lon"]))
-    return (
-        2
-        * 6371
-        * asin(
-            sqrt(sin((lat2 - lat1) / 2) ** 2 + cos(lat1) * cos(lat2) * sin((lon2 - lon1) / 2) ** 2)
-        )
-    )
-
-
-def _corridor_points(route: dict, count: int = 5) -> list[tuple[str, float, float, float]]:
-    """Sample route vertices by travelled distance, rather than vertex index."""
-    coords = route["coordinates"]
-    lengths = [_distance_km(coords[i - 1], coords[i]) for i in range(1, len(coords))]
-    total = sum(lengths)
-    if not total:
-        raise ValueError("Route contains no usable geometry")
-    targets = [total * index / (count - 1) for index in range(count)]
-    samples = []
-    segment, travelled = 0, 0.0
-    for index, target in enumerate(targets):
-        while segment < len(lengths) - 1 and travelled + lengths[segment] < target:
-            travelled += lengths[segment]
-            segment += 1
-        fraction = 0 if not lengths[segment] else (target - travelled) / lengths[segment]
-        start, end = coords[segment], coords[segment + 1]
-        lat = start["lat"] + fraction * (end["lat"] - start["lat"])
-        lon = start["lon"] + fraction * (end["lon"] - start["lon"])
-        label = (
-            "origin" if index == 0 else "destination" if index == count - 1 else f"corridor_{index}"
-        )
-        samples.append((label, lat, lon, target / total))
-    return samples
 
 
 @router.post("/route", response_model=RouteAnalysisResponse)
@@ -73,7 +36,13 @@ def analyze_route(
         logger.exception("Routing service failed")
         raise HTTPException(status_code=502, detail="Routing service unavailable")
 
-    points = _corridor_points(route)
+    try:
+        points = geo.sample_corridor_points(route)
+    except geo.InvalidRouteGeometryError as exc:
+        logger.warning("Routing service returned unusable geometry: %s", exc)
+        raise HTTPException(
+            status_code=502, detail="Routing service returned unusable route geometry"
+        )
 
     snapshots: list[WeatherSnapshot] = []
     try:

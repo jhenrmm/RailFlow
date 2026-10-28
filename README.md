@@ -4,9 +4,9 @@ Intelligent trip analysis API built with **FastAPI**. Given an origin and a dest
 
 ## Features
 
-- **Authentication** — JWT-based register/login/logout with PBKDF2 password hashing and server-side token revocation.
-- **Trip analysis** — computes distance, duration and corridor midpoint via the OpenRoute API (supports several travel profiles).
-- **Weather context** — fetches current conditions (temperature, humidity, precipitation, wind, etc.) at the origin, destination and midpoint using Open-Meteo (no API key required).
+- **Authentication** — JWT-based register/login/logout with scrypt password hashing and server-side token revocation.
+- **Trip analysis** — computes distance, duration and samples five points along a route corridor via OpenRoute Service.
+- **Weather context** — fetches forecast conditions for the estimated arrival time at each sample point using Open-Meteo.
 - **AI assessment** — a local Ollama model analyzes the route + weather and returns a JSON assessment with a summary, weather impact, delay risk and recommendation.
 - **History** — every analysis is stored per user; a history endpoint lists past analyses.
 - **Interactive docs** — automatic OpenAPI docs served at `/docs`.
@@ -17,7 +17,7 @@ Intelligent trip analysis API built with **FastAPI**. Given an origin and a dest
 | --- | --- |
 | API framework | [FastAPI](https://fastapi.tiangolo.com) + Uvicorn |
 | Database | PostgreSQL (SQLAlchemy 2.0 + psycopg) |
-| Authentication | PyJWT (HS256) + PBKDF2 |
+| Authentication | PyJWT (HS256) + scrypt |
 | Routing | [OpenRoute Service](https://openrouteservice.org) |
 | Weather | [Open-Meteo](https://open-meteo.com) |
 | Local LLM | [Ollama](https://ollama.com) `/api/chat` |
@@ -95,6 +95,17 @@ Open http://localhost:8000/docs for the interactive Swagger UI.
 
 Use `GET /health` for a liveness check and `GET /ready` for a readiness check.
 
+### Run with Docker
+
+Set `OPENROUTE_API_KEY` and `JWT_SECRET_KEY` in your environment, then run:
+
+```bash
+docker compose up --build
+```
+
+The Compose setup starts the API, PostgreSQL, and Ollama. Pull the configured Ollama
+model inside the Ollama container before using the AI assessment feature.
+
 ### 5. Run automated tests
 
 ```bash
@@ -156,7 +167,10 @@ The response contains the route summary, weather snapshots for the origin/destin
 | `WEATHER_TIMEOUT` | no | `10` | Weather request timeout (s) |
 | `OLLAMA_URL` | no | `http://localhost:11434` | Ollama base URL |
 | `OLLAMA_MODEL` | no | `qwen3:4b` | Ollama model name |
-| `OLLAMA_TIMEOUT` | no | `1000` | Ollama request timeout (s) |
+| `OLLAMA_TIMEOUT` | no | `60` | Ollama request timeout (s) |
+| `HTTP_RETRY_ATTEMPTS` | no | `3` | Attempts for transient upstream failures |
+| `HTTP_RETRY_BACKOFF_SECONDS` | no | `0.25` | Initial retry delay; increases exponentially |
+| `HTTP_MAX_CONNECTIONS` | no | `20` | Maximum pooled upstream HTTP connections |
 | `JWT_SECRET_KEY` | yes | — | JWT signing secret; use a long random value |
 | `JWT_ALGORITHM` | no | `HS256` | JWT signing algorithm |
 | `JWT_EXPIRE_MINUTES` | no | `60` | Access token lifetime |

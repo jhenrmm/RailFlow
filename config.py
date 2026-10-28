@@ -22,7 +22,12 @@ OPENROUTE_TIMEOUT = float(os.getenv("OPENROUTE_TIMEOUT", "10"))
 # Ollama local
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:4b")
-OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "1000"))
+OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "60"))
+
+# Outbound HTTP
+HTTP_RETRY_ATTEMPTS = int(os.getenv("HTTP_RETRY_ATTEMPTS", "3"))
+HTTP_RETRY_BACKOFF_SECONDS = float(os.getenv("HTTP_RETRY_BACKOFF_SECONDS", "0.25"))
+HTTP_MAX_CONNECTIONS = int(os.getenv("HTTP_MAX_CONNECTIONS", "20"))
 
 # JWT
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
@@ -51,3 +56,9 @@ def validate_settings() -> None:
     ]
     if missing:
         raise RuntimeError("Missing required environment variables: " + ", ".join(missing))
+    if HTTP_RETRY_ATTEMPTS < 1:
+        raise RuntimeError("HTTP_RETRY_ATTEMPTS must be at least 1")
+    if HTTP_RETRY_BACKOFF_SECONDS < 0:
+        raise RuntimeError("HTTP_RETRY_BACKOFF_SECONDS must not be negative")
+    if HTTP_MAX_CONNECTIONS < 1:
+        raise RuntimeError("HTTP_MAX_CONNECTIONS must be at least 1")

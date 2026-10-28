@@ -1,11 +1,13 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import ALLOWED_ORIGINS, validate_settings
+from database import is_database_ready
 from routers import analysis, auth, history
+from services.http import close_http_client
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
@@ -13,7 +15,10 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     validate_settings()
-    yield
+    try:
+        yield
+    finally:
+        close_http_client()
 
 
 app = FastAPI(title="Rail Flow", version="1.0.0", lifespan=lifespan)
@@ -35,6 +40,11 @@ def health():
 
 @app.get("/ready", tags=["operations"])
 def ready():
+    if not is_database_ready():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database is unavailable",
+        )
     return {"status": "ready"}
 
 

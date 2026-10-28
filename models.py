@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, String, Text, func
+from sqlalchemy import DateTime, Float, ForeignKey, Index, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -20,6 +20,7 @@ class User(Base):
 
 class RouteAnalysisHistory(Base):
     __tablename__ = "route_analysis_history"
+    __table_args__ = (Index("ix_route_analysis_history_user_created", "user_id", "created_at"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
